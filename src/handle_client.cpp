@@ -5,6 +5,11 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
+#include <vector>
+#include <cstdio>
+#include <sys/socket.h>
+#include <unistd.h>
+#include "handle_client.h"
 
 constexpr int BUFFER_SIZE = 4096; 
 constexpr const char* INDEX_FILENAME = "index.html";
@@ -40,11 +45,10 @@ bool parse_http_request(const std::string &msg, HttpRequest &req) {
 
     // parse request line
     std::istringstream iss(request_line);
-    if (req.method.empty() || req.uri.empty() || req.version.empty()) {
-        return -1; // invalid request line
-    }
     iss >> req.method >> req.uri >> req.version;
-
+    if (req.method.empty() || req.uri.empty() || req.version.empty()) {
+        return 0; // invalid request line
+    }
     // parse headers
     std::string header_line;
     while (std::getline(stream, header_line) && !header_line.empty()) {
@@ -85,17 +89,55 @@ std::string create_http_response(const std::string& content, HttpResponse& res) 
     return response;
 }
 
-long get_fsize(const std::string_view filename = INDEX_FILENAME) {
-    std::ifstream file(filename.data(), std::ios::binary | std::ios::ate);
-    if (!file) return -1;
-    auto fsize = file.tellg();
-    file.seekg(0, std::ios::beg);
-    return fsize;
-}
+// long get_fsize(FILE* fd) {
+//     if (!fd) return -1;
+//     long current = ftell(fd);        // save position
+//     fseek(fd, 0, SEEK_END);
+//     long size = ftell(fd);
+//     fseek(fd, current, SEEK_SET);    // restore position
+//     return size;
+// }
+
 
 int handle_client(int client_socket) {
     // recv request: you can read incoming data from the remote side using the recv() (for TCP SOCK_STREAM sockets)
-    
+    std::vector<char> buf(BUFFER_SIZE);
 
+    int bytes_recv = 0;
+    std::string request_data;
+    while ((bytes_recv = recv(client_socket, buf.data(), buf.size(), 0)) > 0) {
+        request_data.append(buf.data(), bytes_recv);
+        if (request_data.find("\r\n\r\n") != std::string::npos) break;
+    }
+    if (bytes_recv < 0) return -1;
+    HttpRequest req;
+    if (!parse_http_request(request_data, req)) return -1;
+    std::string path;
+    if (req.uri == "/")
+        path = "../html/index.html";
+    else
+        path = "../html" + req.uri;
+    req.uri = path;
+    std::ifstream fd(req.uri, std::ios::binary);
+    if (!fd) {
+        std::cerr << "error opening file\n";
+        return -1;
+    }
+
+    // response
+    std::string content((std::istreambuf_iterator<char>(fd)), std::istreambuf_iterator<char>());
+    HttpResponse res;
+    std::string response = create_http_response(content, res);
+    if(response.size() < 1) {
+        printf("error creating response: %d\n", errno);
+        return -1;
+    }
+    printf("%s\n", response);
+    int bytes_sent;
+    if((bytes_sent = send(client_socket, response.data(), response.size(), 0)) == -1) return -1;
+
+    printf("Closed client socket\n");
+    close(client_socket);
+    return 0;
 }
 

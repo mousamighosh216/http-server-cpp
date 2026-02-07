@@ -1,1 +1,1 @@
-void handle_client(int client_socket);
+int handle_client(int client_socket);
