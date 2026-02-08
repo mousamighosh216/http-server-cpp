@@ -114,13 +114,14 @@ int handle_client(int client_socket) {
     if (!parse_http_request(request_data, req)) return -1;
     std::string path;
     if (req.uri == "/")
-        path = "../html/index.html";
+        path = "./html/index.html";
     else
-        path = "../html" + req.uri;
+        path = "./html" + req.uri;
     req.uri = path;
     std::ifstream fd(req.uri, std::ios::binary);
     if (!fd) {
         std::cerr << "error opening file\n";
+        std::cout << path << std::endl;
         return -1;
     }
 
@@ -132,7 +133,7 @@ int handle_client(int client_socket) {
         printf("error creating response: %d\n", errno);
         return -1;
     }
-    printf("%s\n", response);
+    std::cout << response << std::endl;
     int bytes_sent;
     if((bytes_sent = send(client_socket, response.data(), response.size(), 0)) == -1) return -1;
 

@@ -6,7 +6,7 @@
 #include <iostream>
 #include "network.h"
 
-constexpr int QUEUE_SIZE 20; 
+constexpr int QUEUE_SIZE = 20; 
 constexpr const char* MY_PORT = "6969";
 
 /**
@@ -23,11 +23,11 @@ constexpr const char* MY_PORT = "6969";
 * - The function does not return a value; the result is written directly to res.
 */
 void addr_to_str(struct sockaddr *addr, char* res) {
-    void* res_addr;
+    const void* res_addr;
     if(addr->sa_family == AF_INET) {
-        res_addr = &reinterpret_cast<const sockaddr_in*>(addr)->sin_addr;
+        res_addr = &reinterpret_cast<struct sockaddr_in*>(addr)->sin_addr;
     } else {
-        res_addr = &reinterpret_cast<const sockaddr_in6*>(addr)->sin6_addr;
+        res_addr = &reinterpret_cast<struct sockaddr_in6*>(addr)->sin6_addr;
     }
     inet_ntop(addr->sa_family, res_addr, res, INET6_ADDRSTRLEN);
 }
@@ -39,7 +39,7 @@ void addr_to_str(struct sockaddr *addr, char* res) {
 void print_client_ip(int client_socket_fd) {
     sockaddr_storage peer_addr{};
     socklen_t len = sizeof(peer_addr);
-    getpeername(client_fd, reinterpret_cast<sockaddr*>(&peer_addr), &len);
+    getpeername(client_socket_fd, reinterpret_cast<sockaddr*>(&peer_addr), &len);
     char ip[INET6_ADDRSTRLEN];
     addr_to_str(reinterpret_cast<sockaddr*>(&peer_addr), ip);
     std::cout << "server: got connection from " << ip << "\n";
@@ -75,7 +75,7 @@ int create_server_socket() {
         return -1;
     } 
     
-    if (bind(sockfd, server->ai_addr, server->ai_addrlen) == -1) {
+    if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
         printf("bind: error");
         return -1;
     }
